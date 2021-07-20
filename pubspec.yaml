@@ -37,6 +37,7 @@ dependencies:
   fluttertoast: ^8.0.7
   uuid: ^3.0.4
   timeago: ^3.1.0
+  pinch_zoom_image_last: ^0.4.1
 
 dev_dependencies:
   flutter_test:

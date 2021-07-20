@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flash_chat_app/components/messageStream.dart';
 import 'package:flash_chat_app/repository/messageRepository.dart';
 import 'package:flash_chat_app/repository/themeRepository.dart';
@@ -371,7 +372,11 @@ class _MessageBubbleState extends State<MessageBubble> {
   Widget build(BuildContext context) {
     final _messageRepository = Provider.of<MessageRepository>(context);
     Size size = MediaQuery.of(context).size;
-    void deleteMessage({required String messageUid}) async {
+    void deleteMessage(
+        {required String messageUid, required String type}) async {
+      if (type == 'image') {
+        FirebaseStorage.instance.ref('chatImages').child(messageUid).delete();
+      }
       await _firestore.collection('messages').doc(messageUid).delete();
     }
 
@@ -389,6 +394,15 @@ class _MessageBubbleState extends State<MessageBubble> {
     }
 
     return GestureDetector(
+      onHorizontalDragStart: (details) {
+        setState(() {
+          reply = true;
+          replyMessage = widget.text;
+          replyTo = widget.senderUid;
+          print(replyMessage);
+          _messageRepository.setReplyState();
+        });
+      },
       onLongPress: () {
         if (widget.senderUid == FirebaseAuth.instance.currentUser!.uid &&
             isNotLate())
@@ -398,7 +412,8 @@ class _MessageBubbleState extends State<MessageBubble> {
               actions: [
                 TextButton(
                     onPressed: () {
-                      deleteMessage(messageUid: widget.messageUid);
+                      deleteMessage(
+                          messageUid: widget.messageUid, type: widget.type);
                       Navigator.of(ctxt).pop();
                     },
                     child: Text('Delete')),
@@ -414,106 +429,92 @@ class _MessageBubbleState extends State<MessageBubble> {
         else
           Fluttertoast.showToast(msg: 'Can not be deleted');
       },
-      child: GestureDetector(
-        onHorizontalDragStart: (details) {
-          setState(() {
-            reply = true;
-            replyMessage = widget.text;
-            replyTo = widget.senderUid;
-            print(replyMessage);
-            _messageRepository.setReplyState();
-          });
-        },
-        child: Padding(
-          padding: EdgeInsets.all(size.width * .02),
-          child: Column(
-            crossAxisAlignment:
-                widget.senderUid == FirebaseAuth.instance.currentUser!.uid
-                    ? CrossAxisAlignment.end
-                    : CrossAxisAlignment.start,
-            children: [
-              widget.replyMessage != ''
-                  // reply message text above the message bubble
-                  ? Container(
-                      margin: EdgeInsets.only(bottom: 8.0),
-                      constraints: BoxConstraints(maxWidth: size.width * 0.7),
-                      padding: EdgeInsets.all(4.0),
-                      decoration: BoxDecoration(
-                        border: Border(
-                          left: widget.senderUid ==
-                                  FirebaseAuth.instance.currentUser!.uid
-                              ? BorderSide(
-                                  color: Colors.green.shade800, width: 2)
-                              : BorderSide.none,
-                          right: widget.senderUid !=
-                                  FirebaseAuth.instance.currentUser!.uid
-                              ? BorderSide(
-                                  color: Colors.green.shade800, width: 2)
-                              : BorderSide.none,
-                        ),
-                      ),
-                      child: widget.replyMessage.contains(
-                              'https://firebasestorage.googleapis.com/v0/b/flash-chat-app-100a4.appspot.com/o/chatImages')
-                          ? Container(
-                              width: 100,
-                              height: 100,
-                              child: Image.network(widget.replyMessage),
-                            )
-                          : Text(widget.replyMessage),
-                    )
-                  : SizedBox(),
-              widget.type == 'text'
-                  ? Container(
-                      constraints: BoxConstraints(maxWidth: size.width * 0.7),
-                      child: Material(
-                        elevation: size.width * .01,
-                        borderRadius: BorderRadius.only(
-                          topLeft: widget.senderUid ==
-                                  FirebaseAuth.instance.currentUser!.uid
-                              ? Radius.circular(size.height * .05)
-                              : Radius.zero,
-                          topRight: widget.senderUid !=
-                                  FirebaseAuth.instance.currentUser!.uid
-                              ? Radius.circular(size.height * .05)
-                              : Radius.zero,
-                          bottomLeft: Radius.circular(size.height * .05),
-                          bottomRight: Radius.circular(size.height * .05),
-                        ),
-                        color: widget.senderUid ==
+      child: Padding(
+        padding: EdgeInsets.all(size.width * .02),
+        child: Column(
+          crossAxisAlignment:
+              widget.senderUid == FirebaseAuth.instance.currentUser!.uid
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
+          children: [
+            widget.replyMessage != ''
+                // reply message text above the message bubble
+                ? Container(
+                    margin: EdgeInsets.only(bottom: 8.0),
+                    constraints: BoxConstraints(maxWidth: size.width * 0.7),
+                    padding: EdgeInsets.all(4.0),
+                    decoration: BoxDecoration(
+                      border: Border(
+                        left: widget.senderUid ==
                                 FirebaseAuth.instance.currentUser!.uid
-                            ? Colors.blueAccent.shade700
-                            : getColorByUid(uid: widget.senderUid),
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(
-                              vertical: size.height * .015,
-                              horizontal: size.width * .05),
-                          child: Text(
-                            widget.text,
-                            style: TextStyle(
-                                fontSize: size.width * .04,
-                                color: Colors.white),
-                          ),
-                        ),
+                            ? BorderSide(color: Colors.green.shade800, width: 2)
+                            : BorderSide.none,
+                        right: widget.senderUid !=
+                                FirebaseAuth.instance.currentUser!.uid
+                            ? BorderSide(color: Colors.green.shade800, width: 2)
+                            : BorderSide.none,
                       ),
-                    )
-                  : GestureDetector(
-                      onTap: () {
-                        Navigator.of(context).push(MaterialPageRoute(
-                            builder: (context) => InteractiveViewer(
-                                  child: Image.network(widget.text),
-                                )));
-                      },
-                      child: Container(
-                        height: size.height * 0.3,
-                        constraints: BoxConstraints(maxWidth: size.width * 0.7),
-                        child: Image.network(
+                    ),
+                    child: widget.replyMessage.contains(
+                            'https://firebasestorage.googleapis.com/v0/b/flash-chat-app-100a4.appspot.com/o/chatImages')
+                        ? Container(
+                            width: 100,
+                            height: 100,
+                            child: Image.network(widget.replyMessage),
+                          )
+                        : Text(widget.replyMessage),
+                  )
+                : SizedBox(),
+            widget.type == 'text'
+                ? Container(
+                    constraints: BoxConstraints(maxWidth: size.width * 0.7),
+                    child: Material(
+                      elevation: size.width * .01,
+                      borderRadius: BorderRadius.only(
+                        topLeft: widget.senderUid ==
+                                FirebaseAuth.instance.currentUser!.uid
+                            ? Radius.circular(size.height * .05)
+                            : Radius.zero,
+                        topRight: widget.senderUid !=
+                                FirebaseAuth.instance.currentUser!.uid
+                            ? Radius.circular(size.height * .05)
+                            : Radius.zero,
+                        bottomLeft: Radius.circular(size.height * .05),
+                        bottomRight: Radius.circular(size.height * .05),
+                      ),
+                      color: widget.senderUid ==
+                              FirebaseAuth.instance.currentUser!.uid
+                          ? Colors.blueAccent.shade700
+                          : getColorByUid(uid: widget.senderUid),
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                            vertical: size.height * .015,
+                            horizontal: size.width * .05),
+                        child: Text(
                           widget.text,
-                          fit: BoxFit.cover,
+                          style: TextStyle(
+                              fontSize: size.width * .04, color: Colors.white),
                         ),
                       ),
                     ),
-            ],
-          ),
+                  )
+                : GestureDetector(
+                    onTap: () {
+                      Navigator.of(context).push(MaterialPageRoute(
+                          builder: (context) => InteractiveViewer(
+                                child: Image.network(widget.text),
+                              )));
+                    },
+                    child: Container(
+                      height: size.height * 0.3,
+                      constraints: BoxConstraints(maxWidth: size.width * 0.7),
+                      child: Image.network(
+                        widget.text,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+          ],
         ),
       ),
     );

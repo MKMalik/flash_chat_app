@@ -89,11 +89,13 @@ class UserRepository with ChangeNotifier {
     required File image,
   }) async {
     _appState = AppState.authenticating;
+
     var user = await _auth.createUserWithEmailAndPassword(
         email: email, password: password);
 
-    // upload photo to firebase storage
+    print('is new user: ' + user.additionalUserInfo!.isNewUser.toString());
 
+    // upload photo to firebase storage
     Reference firebaseStorageRef = FirebaseStorage.instance
         .ref()
         .child('profilePics')
